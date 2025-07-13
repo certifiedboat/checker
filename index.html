@@ -1,125 +1,616 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Checkers</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f9fafb;
-      margin: 0;
-      padding: 0;
-    }
-    canvas {
-      border: 4px solid #333;
-      border-radius: 8px;
-      background-color: #fff;
-    }
-    .reset-button, .undo-button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .reset-button:hover, .undo-button:hover {
-      background-color: #45a049;
-    }
-    .treasure {
-      width: 80px;
-      height: 80px;
-      background: url('https://cdn-icons-png.flaticon.com/512/3081/3081986.png') no-repeat center/cover;
-      position: relative;
-    }
-    .gem {
-      width: 16px;
-      height: 16px;
-      background: url('https://cdn-icons-png.flaticon.com/512/650/650143.png') no-repeat center/contain;
-      position: absolute;
-      animation: dropGem 1s ease forwards;
-    }
-    @keyframes dropGem {
-      from { top: -30px; opacity: 0; }
-      to { top: 20px; opacity: 1; }
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Checkers</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f9fafb;
+    margin: 0;
+    padding: 0;
+  }
+  canvas {
+    border: 4px solid #333;
+    border-radius: 8px;
+    background-color: #fff;
+  }
+  .btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    margin: 5px;
+  }
+  .btn:hover {
+    background-color: #45a049;
+  }
+  .treasure {
+    width: 80px;
+    height: 80px;
+    background: url('https://cdn-icons-png.flaticon.com/512/3081/3081986.png') no-repeat center/cover;
+    position: relative;
+    margin-top: 10px;
+  }
+  .gem {
+    width: 16px;
+    height: 16px;
+    background: url('https://cdn-icons-png.flaticon.com/512/650/650143.png') no-repeat center/contain;
+    position: absolute;
+    animation: dropGem 1s ease forwards;
+  }
+  @keyframes dropGem {
+    from { top: -30px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
+  }
+  .highlight {
+    outline: 3px solid yellow;
+  }
+</style>
 </head>
-<body class="flex flex-col items-center p-6">
+<body class="flex flex-col items-center p-4">
+  <h1 class="text-3xl font-bold mb-4">Ultimate Checkers</h1>
 
-  <!-- Player Name Setup -->
-  <div id="nameInput" class="flex flex-col items-center space-y-4">
-    <h1 class="text-3xl font-bold">Enter Player Names</h1>
-    <input type="text" id="playerRed" placeholder="Red Player Name" class="border p-2 rounded"/>
-    <input type="text" id="playerBlack" placeholder="Black Player Name" class="border p-2 rounded"/>
-    <button onclick="startGame()" class="reset-button">Start Game</button>
+  <div class="mb-4">
+    <input id="playerRed" placeholder="Red Player Name" class="border p-2 rounded mr-2" />
+    <input id="playerBlack" placeholder="Black Player Name" class="border p-2 rounded" />
+    <button class="btn" onclick="startGame()">Start Game</button>
   </div>
 
-  <!-- Main Game -->
-  <div id="gameUI" class="hidden flex flex-col items-center space-y-4">
-    <div class="flex items-center justify-between w-full max-w-xl">
-      <div class="text-xl font-semibold"><span id="redName">Red</span> Coins: <span id="redCoins">0</span></div>
-      <div class="text-xl font-semibold"><span id="blackName">Black</span> Coins: <span id="blackCoins">0</span></div>
-    </div>
+  <div class="text-lg mb-2" id="status"></div>
+  <canvas id="board" width="600" height="600"></canvas>
 
-    <div id="messageBox" class="text-xl font-bold text-blue-700"></div>
-    <canvas id="checkerboard" width="600" height="600"></canvas>
-
-    <div class="flex space-x-4">
-      <button id="resetButton" class="reset-button">Reset</button>
-      <button id="undoButton" class="undo-button">Undo</button>
-    </div>
-
-    <!-- Treasure Chest -->
-    <div id="treasure" class="treasure mt-6 hidden"></div>
+  <div class="flex flex-wrap justify-center">
+    <button class="btn" onclick="resetGame()">Reset</button>
+    <button class="btn" onclick="undoMove()">Undo</button>
   </div>
 
-  <!-- Leaderboard -->
-  <div class="mt-10 w-full max-w-xl">
-    <h2 class="text-2xl font-bold mb-2">🏆 Leaderboard</h2>
-    <ul id="leaderboard" class="space-y-1 text-lg text-gray-800"></ul>
+  <div class="mt-4">
+    <p>Red (<span id="nameRed">Red</span>): <span id="coinsRed">0</span> Coins</p>
+    <p>Black (<span id="nameBlack">Black</span>): <span id="coinsBlack">0</span> Coins</p>
   </div>
 
-  <!-- Sounds -->
-  <audio id="jumpSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8509567329.mp3?filename=pop-94319.mp3" preload="auto"></audio>
-  <audio id="kingSound" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_9e8fe28517.mp3?filename=notification-89939.mp3" preload="auto"></audio>
-  <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_33c1b4bfa0.mp3?filename=success-fanfare-trumpets-6185.mp3" preload="auto"></audio>
+  <div id="treasure" class="treasure hidden"></div>
 
-  <script>
-    // Core game functions to be reattached
-    function drawBoard() {
-      const canvas = document.getElementById("checkerboard");
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      const CELL_SIZE = canvas.width / 8;
+  <h2 class="text-2xl mt-6">🏆 Leaderboard</h2>
+  <ul id="leaderboard" class="mt-2 text-left"></ul>
 
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          const isDark = (row + col) % 2 !== 0;
-          ctx.fillStyle = isDark ? '#b58863' : '#f0d9b5';
-          ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+  <audio id="jumpSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8509567329.mp3?filename=pop-94319.mp3"></audio>
+  <audio id="kingSound" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_9e8fe28517.mp3?filename=notification-89939.mp3"></audio>
+  <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_33c1b4bfa0.mp3?filename=success-fanfare-trumpets-6185.mp3"></audio>
 
-          const piece = board[row][col];
-          if (piece !== 0) {
-            ctx.beginPath();
-            ctx.arc(col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2.5, 0, 2 * Math.PI);
-            ctx.fillStyle = piece === 1 || piece === 3 ? '#cc0000' : '#333';
-            ctx.fill();
+<script>
+(() => {
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const status = document.getElementById('status');
+  const treasure = document.getElementById('treasure');
+  const jumpSound = document.getElementById('jumpSound');
+  const kingSound = document.getElementById('kingSound');
+  const winSound = document.getElementById('winSound');
 
-            if (piece === 3 || piece === 4) {
-              ctx.fillStyle = 'gold';
-              ctx.font = `${CELL_SIZE * 0.6}px Arial`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText('♔', col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2);
-            }
+  const nameRedElem = document.getElementById('nameRed');
+  const nameBlackElem = document.getElementById('nameBlack');
+  const coinsRedElem = document.getElementById('coinsRed');
+  const coinsBlackElem = document.getElementById('coinsBlack');
+  const leaderboardElem = document.getElementById('leaderboard');
+
+  const BOARD_SIZE = 8;
+  const CELL_SIZE = canvas.width / BOARD_SIZE;
+
+  const LIGHT_SQUARE_COLOR = '#f0d9b5';
+  const DARK_SQUARE_COLOR = '#b58863';
+  const RED_PIECE_COLOR = '#cc0000';
+  const BLACK_PIECE_COLOR = '#333333';
+  const SELECTED_COLOR = '#ffeb3b';
+  const VALID_MOVE_COLOR = '#8bc34a';
+
+  // Piece codes:
+  // 0 = empty, 1 = red, 2 = black, 3 = red king, 4 = black king
+
+  let board = [];
+  let currentPlayer = 'red'; // 'red' or 'black'
+  let selectedPiece = null; // {row,col}
+  let possibleMoves = [];   // {row,col,type,jumpedPiece?}
+  let isGameOver = false;
+  let moveHistory = [];
+  let coins = { red: 0, black: 0 };
+  let leaderboard = {};
+
+  let playerNames = { red: 'Red', black: 'Black' };
+
+  // Initialization functions
+
+  function initializeBoard() {
+    board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if ((r + c) % 2 !== 0) {
+          board[r][c] = 1; // red pieces
+        }
+      }
+    }
+
+    for (let r = 5; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if ((r + c) % 2 !== 0) {
+          board[r][c] = 2; // black pieces
+        }
+      }
+    }
+  }
+
+  // Draw the board and pieces
+
+  function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        ctx.fillStyle = (r + c) % 2 === 0 ? LIGHT_SQUARE_COLOR : DARK_SQUARE_COLOR;
+        ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      }
+    }
+
+    // Highlight selected piece
+    if (selectedPiece) {
+      ctx.fillStyle = SELECTED_COLOR;
+      ctx.fillRect(selectedPiece.col * CELL_SIZE, selectedPiece.row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
+
+    // Highlight possible moves
+    for (const move of possibleMoves) {
+      ctx.fillStyle = VALID_MOVE_COLOR;
+      ctx.fillRect(move.col * CELL_SIZE, move.row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
+
+    // Draw pieces
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const piece = board[r][c];
+        if (piece !== 0) {
+          ctx.beginPath();
+          ctx.arc(c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE * 0.4, 0, Math.PI * 2);
+          ctx.fillStyle = (piece === 1 || piece === 3) ? RED_PIECE_COLOR : BLACK_PIECE_COLOR;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#222';
+          ctx.stroke();
+
+          if (piece === 3 || piece === 4) {
+            ctx.fillStyle = 'gold';
+            ctx.font = `${CELL_SIZE * 0.5}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('♔', c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2);
           }
         }
       }
     }
-  </script>
+  }
+
+  // Helpers
+
+  function getPiece(row, col) {
+    return board[row][col];
+  }
+
+  function isOwnPiece(row, col) {
+    const p = getPiece(row, col);
+    return currentPlayer === 'red' ? (p === 1 || p === 3) : (p === 2 || p === 4);
+  }
+
+  function opponentPieces() {
+    return currentPlayer === 'red' ? [2, 4] : [1, 3];
+  }
+
+  function isKingPiece(piece) {
+    return piece === 3 || piece === 4;
+  }
+
+  function canMoveDirection(piece, fromRow, toRow) {
+    if (isKingPiece(piece)) return true;
+    if (piece === 1) return toRow > fromRow;
+    if (piece === 2) return toRow < fromRow;
+    return false;
+  }
+
+  // Move validation and calculation
+
+  function validMoveType(fromRow, fromCol, toRow, toCol) {
+    const piece = getPiece(fromRow, fromCol);
+    const isKing = isKingPiece(piece);
+    const rowDiff = Math.abs(toRow - fromRow);
+    const colDiff = Math.abs(toCol - fromCol);
+    const targetPiece = getPiece(toRow, toCol);
+
+    if (targetPiece !== 0) return null;
+    if ((toRow + toCol) % 2 === 0) return null; // must move on dark square
+    if (rowDiff !== colDiff) return null; // must move diagonally
+
+    if (rowDiff === 1) {
+      if (!canMoveDirection(piece, fromRow, toRow)) return null;
+      return { type: 'move' };
+    }
+
+    if (rowDiff === 2) {
+      const jumpedRow = (fromRow + toRow) / 2;
+      const jumpedCol = (fromCol + toCol) / 2;
+      const jumpedPiece = getPiece(jumpedRow, jumpedCol);
+
+      if (!opponentPieces().includes(jumpedPiece)) return null;
+
+      return { type: 'jump', jumped: { row: jumpedRow, col: jumpedCol } };
+    }
+
+    return null;
+  }
+
+  function getMovesForPiece(row, col) {
+    const moves = [];
+    const piece = getPiece(row, col);
+    const directions = [];
+
+    if (currentPlayer === 'red' || isKingPiece(piece)) {
+      directions.push({ dr: 1, dc: 1 }, { dr: 1, dc: -1 });
+    }
+    if (currentPlayer === 'black' || isKingPiece(piece)) {
+      directions.push({ dr: -1, dc: 1 }, { dr: -1, dc: -1 });
+    }
+
+    const uniqueDirs = Array.from(new Set(directions.map(JSON.stringify)), JSON.parse);
+
+    for (const d of uniqueDirs) {
+      const newRow = row + d.dr;
+      const newCol = col + d.dc;
+      if (newRow >= 0 && newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE) {
+        if (validMoveType(row, col, newRow, newCol)?.type === 'move') {
+          moves.push({ row: newRow, col: newCol, type: 'move' });
+        }
+      }
+
+      const jumpRow = row + 2 * d.dr;
+      const jumpCol = col + 2 * d.dc;
+      if (jumpRow >= 0 && jumpRow < BOARD_SIZE && jumpCol >= 0 && jumpCol < BOARD_SIZE) {
+        if (validMoveType(row, col, jumpRow, jumpCol)?.type === 'jump') {
+          moves.push({
+            row: jumpRow,
+            col: jumpCol,
+            type: 'jump',
+            jumpedPiece: validMoveType(row, col, jumpRow, jumpCol).jumped,
+          });
+        }
+      }
+    }
+    return moves;
+  }
+
+  function forcedJumpsExist() {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (isOwnPiece(r, c)) {
+          const moves = getMovesForPiece(r, c);
+          if (moves.some(m => m.type === 'jump')) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function getForcedJumps() {
+    const forced = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (isOwnPiece(r, c)) {
+          const moves = getMovesForPiece(r, c).filter(m => m.type === 'jump');
+          if (moves.length > 0) forced.push({ row: r, col: c, jumps: moves });
+        }
+      }
+    }
+    return forced;
+  }
+
+  // Move making
+
+  function makeMove(fromRow, fromCol, toRow, toCol) {
+    const piece = board[fromRow][fromCol];
+    const moveType = validMoveType(fromRow, fromCol, toRow, toCol);
+    if (!moveType) return false;
+
+    const jumped = moveType.type === 'jump';
+
+    // Save state for undo
+    moveHistory.push({
+      board: board.map(row => row.slice()),
+      currentPlayer,
+      coins: { ...coins },
+      selectedPiece,
+      possibleMoves: possibleMoves.slice(),
+      isGameOver,
+    });
+
+    board[toRow][toCol] = piece;
+    board[fromRow][fromCol] = 0;
+
+    if (jumped) {
+      const { row: jr, col: jc } = moveType.jumped;
+      board[jr][jc] = 0;
+      coins[currentPlayer] += 5;
+      updateCoinsDisplay();
+      jumpSound.play();
+    }
+
+    // Kinging
+    if (piece === 1 && toRow === BOARD_SIZE - 1) {
+      board[toRow][toCol] = 3;
+      kingSound.play();
+    } else if (piece === 2 && toRow === 0) {
+      board[toRow][toCol] = 4;
+      kingSound.play();
+    }
+
+    return jumped;
+  }
+
+  // Animate move - simple linear interpolation
+
+  async function animateMove(fromRow, fromCol, toRow, toCol) {
+    return new Promise(resolve => {
+      const piece = board[fromRow][fromCol];
+      const pieceColor = (piece === 1 || piece === 3) ? RED_PIECE_COLOR : BLACK_PIECE_COLOR;
+      const startX = fromCol * CELL_SIZE + CELL_SIZE / 2;
+      const startY = fromRow * CELL_SIZE + CELL_SIZE / 2;
+      const endX = toCol * CELL_SIZE + CELL_SIZE / 2;
+      const endY = toRow * CELL_SIZE + CELL_SIZE / 2;
+      const radius = CELL_SIZE * 0.4;
+      const steps = 20;
+      let step = 0;
+
+      function stepAnim() {
+        drawBoard();
+        const t = step / steps;
+        const curX = startX + (endX - startX) * t;
+        const curY = startY + (endY - startY) * t;
+
+        ctx.beginPath();
+        ctx.arc(curX, curY, radius, 0, Math.PI * 2);
+        ctx.fillStyle = pieceColor;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#222';
+        ctx.stroke();
+
+        step++;
+        if (step <= steps) {
+          requestAnimationFrame(stepAnim);
+        } else {
+          resolve();
+        }
+      }
+      stepAnim();
+    });
+  }
+
+  // Check for win
+
+  function checkWin() {
+    let redCount = 0;
+    let blackCount = 0;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const p = board[r][c];
+        if (p === 1 || p === 3) redCount++;
+        else if (p === 2 || p === 4) blackCount++;
+      }
+    }
+    if (redCount === 0) {
+      endGame('black');
+      return true;
+    } else if (blackCount === 0) {
+      endGame('red');
+      return true;
+    }
+    return false;
+  }
+
+  // End game with winner
+
+  function endGame(winnerColor) {
+    isGameOver = true;
+    status.textContent = `${playerNames[winnerColor]} wins! 🎉`;
+    winSound.play();
+
+    coins[winnerColor] += 20;
+    updateCoinsDisplay();
+
+    // Update leaderboard
+    leaderboard[playerNames[winnerColor]] = (leaderboard[playerNames[winnerColor]] || 0) + 1;
+    const loserColor = winnerColor === 'red' ? 'black' : 'red';
+    leaderboard[playerNames[loserColor]] = leaderboard[playerNames[loserColor]] || 0;
+
+    updateLeaderboard();
+
+    // Show treasure chest and drop gems equal to coins won
+    treasure.classList.remove('hidden');
+    treasure.innerHTML = '';
+    for(let i=0; i<10; i++){
+      const gem = document.createElement('div');
+      gem.classList.add('gem');
+      gem.style.left = `${Math.random() * 64 + 8}px`;
+      gem.style.animationDelay = `${i * 0.1}s`;
+      treasure.appendChild(gem);
+    }
+  }
+
+  // Update leaderboard display
+
+  function updateLeaderboard() {
+    leaderboardElem.innerHTML = '';
+    const sorted = Object.entries(leaderboard).sort((a,b) => b[1]-a[1]);
+    for (const [name, wins] of sorted) {
+      const li = document.createElement('li');
+      li.textContent = `${name}: ${wins} wins`;
+      leaderboardElem.appendChild(li);
+    }
+  }
+
+  // Update coin displays
+
+  function updateCoinsDisplay() {
+    coinsRedElem.textContent = coins.red;
+    coinsBlackElem.textContent = coins.black;
+  }
+
+  // Switch turns
+
+  function switchPlayer() {
+    currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
+    selectedPiece = null;
+    possibleMoves = [];
+    updateStatus();
+  }
+
+  // Update status display
+
+  function updateStatus() {
+    if (isGameOver) return;
+    status.textContent = `${playerNames[currentPlayer]}'s turn (${currentPlayer === 'red' ? '🔴' : '⚫'})`;
+  }
+
+  // Handle canvas clicks
+
+  canvas.addEventListener('click', async (e) => {
+    if (isGameOver) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor(x / CELL_SIZE);
+    const row = Math.floor(y / CELL_SIZE);
+
+    if (selectedPiece) {
+      // Check if clicked square is a valid move
+      const move = possibleMoves.find(m => m.row === row && m.col === col);
+      if (move) {
+        const fromRow = selectedPiece.row;
+        const fromCol = selectedPiece.col;
+
+        const jumped = makeMove(fromRow, fromCol, row, col);
+
+        // Animate move
+        await animateMove(fromRow, fromCol, row, col);
+
+        drawBoard();
+
+        if (jumped) {
+          // Check for multi-jump with this piece
+          selectedPiece = { row, col };
+          possibleMoves = getMovesForPiece(row, col).filter(m => m.type === 'jump');
+
+          if (possibleMoves.length > 0) {
+            updateStatus();
+            return; // Player must continue jumping
+          }
+        }
+
+        if (checkWin()) {
+          selectedPiece = null;
+          possibleMoves = [];
+          drawBoard();
+          return;
+        }
+
+        switchPlayer();
+        drawBoard();
+        return;
+      }
+      // If clicked invalid move, deselect
+      selectedPiece = null;
+      possibleMoves = [];
+      drawBoard();
+    } else {
+      // Select piece if belongs to current player and has valid moves
+      if (isOwnPiece(row, col)) {
+        const moves = getMovesForPiece(row, col);
+
+        // Forced jump check: if forced jumps exist, only allow selecting those with jumps
+        if (forcedJumpsExist()) {
+          const forced = getForcedJumps();
+          if (!forced.some(f => f.row === row && f.col === col)) {
+            status.textContent = 'You must select a piece that can jump!';
+            return;
+          }
+        }
+
+        if (moves.length === 0) {
+          status.textContent = 'Selected piece has no valid moves.';
+          return;
+        }
+        selectedPiece = { row, col };
+        possibleMoves = moves;
+        updateStatus();
+        drawBoard();
+      }
+    }
+  });
+
+  // Undo move
+
+  window.undoMove = function undoMove() {
+    if (moveHistory.length === 0) return;
+    const last = moveHistory.pop();
+    board = last.board;
+    currentPlayer = last.currentPlayer;
+    coins = last.coins;
+    selectedPiece = last.selectedPiece;
+    possibleMoves = last.possibleMoves;
+    isGameOver = last.isGameOver;
+    updateCoinsDisplay();
+    updateStatus();
+    drawBoard();
+  };
+
+  // Reset game
+
+  window.resetGame = function resetGame() {
+    initializeBoard();
+    currentPlayer = 'red';
+    selectedPiece = null;
+    possibleMoves = [];
+    isGameOver = false;
+    moveHistory = [];
+    coins = { red: 0, black: 0 };
+    treasure.classList.add('hidden');
+    playerNames.red = document.getElementById('playerRed').value.trim() || 'Red';
+    playerNames.black = document.getElementById('playerBlack').value.trim() || 'Black';
+    nameRedElem.textContent = playerNames.red;
+    nameBlackElem.textContent = playerNames.black;
+    updateCoinsDisplay();
+    updateStatus();
+    drawBoard();
+  };
+
+  // Start game (called on button click)
+
+  window.startGame = function startGame() {
+    if (isGameOver === false && moveHistory.length > 0) {
+      if (!confirm('Game already started. Reset and start new game?')) return;
+    }
+    resetGame();
+  };
+
+  // Initial draw for empty board
+  initializeBoard();
+  drawBoard();
+  updateStatus();
+})();
+</script>
 </body>
 </html>
