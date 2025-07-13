@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ultimate Checkers</title>
+  <title>Checkers</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -89,12 +89,12 @@
   <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_33c1b4bfa0.mp3?filename=success-fanfare-trumpets-6185.mp3" preload="auto"></audio>
 
   <script>
-    // Globals will be initialized here
     let currentPlayer = 'red';
     let board = [];
     let history = [];
     let redCoins = 0;
     let blackCoins = 0;
+    let selected = null;
     let playerNames = { red: 'Red', black: 'Black' };
 
     function startGame() {
@@ -109,27 +109,14 @@
 
     function initializeBoard() {
       board = Array.from({ length: 8 }, () => Array(8).fill(0));
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 1;
-      }
-      for (let r = 5; r < 8; r++) {
-        for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 2;
-      }
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 1;
+      for (let r = 5; r < 8; r++) for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 2;
       history = [];
-      redCoins = 0;
-      blackCoins = 0;
+      redCoins = 0; blackCoins = 0;
       updateCoins();
+      selected = null;
       drawBoard();
       updateMessage(`${playerNames.red}'s Turn`);
-    }
-
-    function updateCoins() {
-      document.getElementById('redCoins').textContent = redCoins;
-      document.getElementById('blackCoins').textContent = blackCoins;
-    }
-
-    function updateMessage(msg) {
-      document.getElementById('messageBox').textContent = msg;
     }
 
     function drawBoard() {
@@ -141,13 +128,16 @@
         for (let c = 0; c < 8; c++) {
           ctx.fillStyle = (r + c) % 2 === 0 ? '#f0d9b5' : '#b58863';
           ctx.fillRect(c * size, r * size, size, size);
+          if (selected && selected.row === r && selected.col === c) {
+            ctx.fillStyle = '#ffeb3b';
+            ctx.fillRect(c * size, r * size, size, size);
+          }
           const piece = board[r][c];
           if (piece) {
             ctx.beginPath();
             ctx.arc(c * size + size/2, r * size + size/2, size * 0.35, 0, Math.PI * 2);
             ctx.fillStyle = (piece === 1 || piece === 3) ? '#cc0000' : '#333';
-            ctx.fill();
-            ctx.stroke();
+            ctx.fill(); ctx.stroke();
             if (piece === 3 || piece === 4) {
               ctx.fillStyle = 'gold';
               ctx.font = `${size * 0.5}px Arial`;
@@ -160,14 +150,23 @@
       }
     }
 
-    // Placeholder for actual game logic...
+    function updateCoins() {
+      document.getElementById('redCoins').textContent = redCoins;
+      document.getElementById('blackCoins').textContent = blackCoins;
+    }
+
+    function updateMessage(msg) {
+      document.getElementById('messageBox').textContent = msg;
+    }
 
     document.getElementById('resetButton').onclick = initializeBoard;
     document.getElementById('undoButton').onclick = () => {
       if (history.length) {
-        const lastState = history.pop();
-        board = JSON.parse(JSON.stringify(lastState));
+        const last = history.pop();
+        board = JSON.parse(JSON.stringify(last));
+        currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
         drawBoard();
+        updateMessage(`${playerNames[currentPlayer]}'s Turn`);
       }
     };
 
@@ -202,6 +201,79 @@
         li.textContent = `${name}: ${score} wins`;
         list.appendChild(li);
       });
+    }
+
+    document.getElementById('checkerboard').onclick = e => {
+      const canvas = e.target;
+      const rect = canvas.getBoundingClientRect();
+      const size = canvas.width / 8;
+      const x = Math.floor((e.clientX - rect.left) / size);
+      const y = Math.floor((e.clientY - rect.top) / size);
+      const piece = board[y][x];
+
+      const isRed = currentPlayer === 'red';
+      const isOwnPiece = (piece === 1 || piece === 3) && isRed || (piece === 2 || piece === 4) && !isRed;
+
+      if (selected && (x !== selected.col || y !== selected.row)) {
+        const valid = isValidMove(selected.row, selected.col, y, x);
+        if (valid) {
+          history.push(JSON.parse(JSON.stringify(board)));
+          board[y][x] = board[selected.row][selected.col];
+          board[selected.row][selected.col] = 0;
+          if (valid.jump) {
+            board[valid.jump.row][valid.jump.col] = 0;
+            document.getElementById('jumpSound').play();
+          }
+          if (currentPlayer === 'red' && y === 7 && board[y][x] === 1) {
+            board[y][x] = 3; document.getElementById('kingSound').play();
+          }
+          if (currentPlayer === 'black' && y === 0 && board[y][x] === 2) {
+            board[y][x] = 4; document.getElementById('kingSound').play();
+          }
+          selected = null;
+          currentPlayer = isRed ? 'black' : 'red';
+          drawBoard();
+          updateMessage(`${playerNames[currentPlayer]}'s Turn`);
+          checkWinner();
+          return;
+        }
+      }
+
+      if (isOwnPiece) {
+        selected = { row: y, col: x };
+        drawBoard();
+      }
+    };
+
+    function isValidMove(sr, sc, er, ec) {
+      const dx = ec - sc;
+      const dy = er - sr;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (absDx !== absDy || absDx > 2 || board[er][ec] !== 0) return null;
+      const piece = board[sr][sc];
+      const forward = currentPlayer === 'red' ? 1 : -1;
+      const isKing = piece === 3 || piece === 4;
+      if (!isKing && dy !== forward && absDy === 1) return null;
+      if (absDx === 2) {
+        const midRow = (sr + er) / 2;
+        const midCol = (sc + ec) / 2;
+        const jumped = board[midRow][midCol];
+        if (currentPlayer === 'red' && (jumped === 2 || jumped === 4)) return { jump: { row: midRow, col: midCol } };
+        if (currentPlayer === 'black' && (jumped === 1 || jumped === 3)) return { jump: { row: midRow, col: midCol } };
+        return null;
+      }
+      return { jump: null };
+    }
+
+    function checkWinner() {
+      let red = 0, black = 0;
+      for (let row of board) for (let cell of row) {
+        if (cell === 1 || cell === 3) red++;
+        if (cell === 2 || cell === 4) black++;
+      }
+      if (red === 0) showWinner('black');
+      if (black === 0) showWinner('red');
     }
 
     renderLeaderboard();
