@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checker Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        canvas {
+            border: 4px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            background-color: #fff;
+            display: block; /* Remove extra space below canvas */
+            max-width: 100%; /* Ensure responsiveness */
+            height: auto; /* Maintain aspect ratio */
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+        .message-box {
+            background-color: #e0f2f7;
+            border: 1px solid #b3e5fc;
+            color: #01579b;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            min-width: 250px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .reset-button {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .reset-button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+        }
+        .reset-button:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="game-container">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4">Checker Game</h1>
+        <div id="messageBox" class="message-box">Red's Turn</div>
+        <canvas id="checkerboard" width="600" height="600"></canvas>
+        <button id="resetButton" class="reset-button">Reset Game</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('checkerboard');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('messageBox');
+        const resetButton = document.getElementById('resetButton');
+
+        const BOARD_SIZE = 8;
+        const CELL_SIZE = canvas.width / BOARD_SIZE;
+
+        // Colors
+        const LIGHT_SQUARE_COLOR = '#f0d9b5'; // Light wood
+        const DARK_SQUARE_COLOR = '#b58863';  // Dark wood
+        const RED_PIECE_COLOR = '#cc0000';    // Deep red
+        const BLACK_PIECE_COLOR = '#333333';  // Dark grey/black
+        const SELECTED_COLOR = '#ffeb3b';    // Yellow for selection
+        const VALID_MOVE_COLOR = '#8bc34a';   // Green for valid moves
+
+        let board = [];
+        let currentPlayer = 'red'; // 'red' or 'black'
+        let selectedPiece = null; // { row, col } of the selected piece
+        let possibleMoves = []; // Array of { row, col } for valid moves
+        let isGameOver = false;
+
+        // Piece representation:
+        // 0: empty
+        // 1: red piece
+        // 2: black piece
+        // 3: red king
+        // 4: black king
+
+        function initializeBoard() {
+            board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+            // Place red pieces
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if ((r + c) % 2 !== 0) { // Dark squares
+                        board[r][c] = 1; // Red piece
+                    }
+                }
+            }
+            // Place black pieces
+            for (let r = 5; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if ((r + c) % 2 !== 0) { // Dark squares
+                        board[r][c] = 2; // Black piece
+                    }
+                }
+            }
+            currentPlayer = 'red';
+            selectedPiece = null;
+            possibleMoves = [];
+            isGameOver = false;
+            updateMessageBox("Red's Turn");
+            drawBoard();
+        }
+
+        function drawBoard() {
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    // Draw squares
+                    ctx.fillStyle = (r + c) % 2 === 0 ? LIGHT_SQUARE_COLOR : DARK_SQUARE_COLOR;
+                    ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+                    // Highlight selected piece
+                    if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
+                        ctx.fillStyle = SELECTED_COLOR;
+                        ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    }
+
+                    // Highlight possible moves
+                    if (possibleMoves.some(move => move.row === r && move.col === c)) {
+                        ctx.fillStyle = VALID_MOVE_COLOR;
+                        ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    }
+
+                    // Draw pieces
+                    const piece = board[r][c];
+                    if (piece !== 0) {
+                        ctx.beginPath();
+                        ctx.arc(c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2 * 0.8, 0, Math.PI * 2);
+                        ctx.fillStyle = (piece === 1 || piece === 3) ? RED_PIECE_COLOR : BLACK_PIECE_COLOR;
+                        ctx.fill();
+                        ctx.strokeStyle = '#222';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Draw king crown
+                        if (piece === 3 || piece === 4) {
+                            ctx.fillStyle = 'gold';
+                            ctx.font = `${CELL_SIZE * 0.5}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText('♔', c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2);
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateMessageBox(message) {
+            messageBox.textContent = message;
+        }
+
+        function getPieceType(row, col) {
+            return board[row][col];
+        }
+
+        function isOwnPiece(row, col) {
+            const piece = getPieceType(row, col);
+            if (currentPlayer === 'red') {
+                return piece === 1 || piece === 3;
+            } else {
+                return piece === 2 || piece === 4;
+            }
+        }
+
+        function isValidMove(startRow, startCol, endRow, endCol) {
+            const piece = getPieceType(startRow, startCol);
+            const isKing = (piece === 3 || piece === 4);
+            const rowDiff = Math.abs(endRow - startRow);
+            const colDiff = Math.abs(endCol - startCol);
+            const targetCell = getPieceType(endRow, endCol);
+
+            // Must move diagonally to an empty dark square
+            if (rowDiff !== colDiff || targetCell !== 0 || (endRow + endCol) % 2 === 0) {
+                return null; // Not a valid diagonal move or target is not empty dark square
+            }
+
+            // Standard move (1 square diagonal)
+            if (rowDiff === 1) {
+                // Red pieces move down, black pieces move up unless king
+                if (currentPlayer === 'red' && !isKing && endRow < startRow) return null;
+                if (currentPlayer === 'black' && !isKing && endRow > startRow) return null;
+                return { type: 'move' };
+            }
+
+            // Jump move (2 squares diagonal)
+            if (rowDiff === 2) {
+                const jumpedRow = (startRow + endRow) / 2;
+                const jumpedCol = (startCol + endCol) / 2;
+                const jumpedPiece = getPieceType(jumpedRow, jumpedCol);
+
+                // Check if there's an opponent's piece to jump over
+                if (currentPlayer === 'red' && (jumpedPiece === 2 || jumpedPiece === 4)) {
+                    return { type: 'jump', jumpedPiece: { row: jumpedRow, col: jumpedCol } };
+                }
+                if (currentPlayer === 'black' && (jumpedPiece === 1 || jumpedPiece === 3)) {
+                    return { type: 'jump', jumpedPiece: { row: jumpedRow, col: jumpedCol } };
+                }
+            }
+            return null;
+        }
+
+        function getPossibleMoves(row, col) {
+            const moves = [];
+            const piece = getPieceType(row, col);
+            const isKing = (piece === 3 || piece === 4);
+            const directions = [];
+
+            if (currentPlayer === 'red' || isKing) {
+                directions.push({ dr: 1, dc: 1 }, { dr: 1, dc: -1 }); // Down-right, Down-left
+            }
+            if (currentPlayer === 'black' || isKing) {
+                directions.push({ dr: -1, dc: 1 }, { dr: -1, dc: -1 }); // Up-right, Up-left
+            }
+
+            // Filter out duplicate directions if king
+            const uniqueDirections = Array.from(new Set(directions.map(JSON.stringify))).map(JSON.parse);
+
+            for (const dir of uniqueDirections) {
+                const newRow = row + dir.dr;
+                const newCol = col + dir.dc;
+
+                // Standard move
+                if (newRow >= 0 && newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE && board[newRow][newCol] === 0) {
+                    const moveCheck = isValidMove(row, col, newRow, newCol);
+                    if (moveCheck && moveCheck.type === 'move') {
+                        moves.push({ row: newRow, col: newCol, type: 'move' });
+                    }
+                }
+
+                // Jump move
+                const jumpRow = row + 2 * dir.dr;
+                const jumpCol = col + 2 * dir.dc;
+                if (jumpRow >= 0 && jumpRow < BOARD_SIZE && jumpCol >= 0 && jumpCol < BOARD_SIZE && board[jumpRow][jumpCol] === 0) {
+                    const moveCheck = isValidMove(row, col, jumpRow, jumpCol);
+                    if (moveCheck && moveCheck.type === 'jump') {
+                        moves.push({ row: jumpRow, col: jumpCol, type: 'jump', jumpedPiece: moveCheck.jumpedPiece });
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function makeMove(startRow, startCol, endRow, endCol) {
+            const piece = board[startRow][startCol];
+            board[endRow][endCol] = piece;
+            board[startRow][startCol] = 0;
+
+            const moveDetails = isValidMove(startRow, startCol, endRow, endCol);
+            let jumped = false;
+
+            if (moveDetails && moveDetails.type === 'jump') {
+                board[moveDetails.jumpedPiece.row][moveDetails.jumpedPiece.col] = 0; // Remove jumped piece
+                jumped = true;
+            }
+
+            // Check for kinging
+            if (piece === 1 && endRow === BOARD_SIZE - 1) { // Red reaches last row
+                board[endRow][endCol] = 3; // Red king
+            } else if (piece === 2 && endRow === 0) { // Black reaches first row
+                board[endRow][endCol] = 4; // Black king
+            }
+
+            return jumped;
+        }
+
+        function checkForForcedJumps() {
+            const forcedJumps = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (isOwnPiece(r, c)) {
+                        const moves = getPossibleMoves(r, c);
+                        const jumps = moves.filter(move => move.type === 'jump');
+                        if (jumps.length > 0) {
+                            forcedJumps.push({ row: r, col: c, jumps: jumps });
+                        }
+                    }
+                }
+            }
+            return forcedJumps;
+        }
+
+        function checkWinCondition() {
+            let redPieces = 0;
+            let blackPieces = 0;
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const piece = board[r][c];
+                    if (piece === 1 || piece === 3) {
+                        redPieces++;
+                    } else if (piece === 2 || piece === 4) {
+                        blackPieces++;
+                    }
+                }
+            }
+
+            if (redPieces === 0) {
+                updateMessageBox("Black Wins!");
+                isGameOver = true;
+            } else if (blackPieces === 0) {
+                updateMessageBox("Red Wins!");
+                isGameOver = true;
+            }
+        }
+
+        canvas.addEventListener('click', (event) => {
+            if (isGameOver) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const col = Math.floor(x / CELL_SIZE);
+            const row = Math.floor(y / CELL_SIZE);
+
+            const clickedPieceType = getPieceType(row, col);
+
+            // If a piece is already selected
+            if (selectedPiece) {
+                // Check if the clicked cell is a valid move for the selected piece
+                const targetMove = possibleMoves.find(move => move.row === row && move.col === col);
+
+                if (targetMove) {
+                    const jumped = makeMove(selectedPiece.row, selectedPiece.col, row, col);
+                    selectedPiece = null;
+                    possibleMoves = [];
+
+                    if (jumped) {
+                        // Check for further jumps from the new position
+                        const furtherJumps = getPossibleMoves(row, col).filter(move => move.type === 'jump');
+                        if (furtherJumps.length > 0) {
+                            selectedPiece = { row, col }; // Keep piece selected for multi-jump
+                            possibleMoves = furtherJumps;
+                            updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'} must make another jump!`);
+                        } else {
+                            // No further jumps, switch turn
+                            currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
+                            checkWinCondition();
+                            if (!isGameOver) {
+                                updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn`);
+                            }
+                        }
+                    } else {
+                        // Not a jump, switch turn
+                        currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
+                        checkWinCondition();
+                        if (!isGameOver) {
+                            updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn`);
+                        }
+                    }
+                } else if (isOwnPiece(row, col)) {
+                    // Clicked on own piece, select it
+                    selectedPiece = { row, col };
+                    possibleMoves = getPossibleMoves(row, col);
+
+                    const forcedJumps = checkForForcedJumps();
+                    if (forcedJumps.length > 0) {
+                        const currentPieceForced = forcedJumps.some(fj => fj.row === row && fj.col === col);
+                        if (!currentPieceForced) {
+                            // If there are forced jumps, but the selected piece isn't one of them, deselect
+                            selectedPiece = null;
+                            possibleMoves = [];
+                            updateMessageBox("You must make a jump if available!");
+                        } else {
+                            // Only show jump moves if forced
+                            possibleMoves = possibleMoves.filter(move => move.type === 'jump');
+                            updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn (Forced Jump)`);
+                        }
+                    } else {
+                        updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn`);
+                    }
+
+                } else {
+                    // Clicked on an empty square or opponent's piece, deselect
+                    selectedPiece = null;
+                    possibleMoves = [];
+                    updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn`);
+                }
+            } else {
+                // No piece selected, try to select one
+                if (isOwnPiece(row, col)) {
+                    selectedPiece = { row, col };
+                    possibleMoves = getPossibleMoves(row, col);
+
+                    const forcedJumps = checkForForcedJumps();
+                    if (forcedJumps.length > 0) {
+                        const currentPieceForced = forcedJumps.some(fj => fj.row === row && fj.col === col);
+                        if (!currentPieceForced) {
+                            // If there are forced jumps, but the selected piece isn't one of them, deselect
+                            selectedPiece = null;
+                            possibleMoves = [];
+                            updateMessageBox("You must make a jump if available!");
+                        } else {
+                            // Only show jump moves if forced
+                            possibleMoves = possibleMoves.filter(move => move.type === 'jump');
+                            updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn (Forced Jump)`);
+                        }
+                    } else {
+                        updateMessageBox(`${currentPlayer === 'red' ? 'Red' : 'Black'}'s Turn`);
+                    }
+                }
+            }
+            drawBoard();
+        });
+
+        resetButton.addEventListener('click', initializeBoard);
+
+        // Initial setup
+        window.onload = initializeBoard;
+    </script>
+</body>
+</html>
