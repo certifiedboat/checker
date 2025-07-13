@@ -89,194 +89,37 @@
   <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_33c1b4bfa0.mp3?filename=success-fanfare-trumpets-6185.mp3" preload="auto"></audio>
 
   <script>
-    let currentPlayer = 'red';
-    let board = [];
-    let history = [];
-    let redCoins = 0;
-    let blackCoins = 0;
-    let selected = null;
-    let playerNames = { red: 'Red', black: 'Black' };
-
-    function startGame() {
-      playerNames.red = document.getElementById('playerRed').value || 'Red';
-      playerNames.black = document.getElementById('playerBlack').value || 'Black';
-      document.getElementById('nameInput').classList.add('hidden');
-      document.getElementById('gameUI').classList.remove('hidden');
-      document.getElementById('redName').textContent = playerNames.red;
-      document.getElementById('blackName').textContent = playerNames.black;
-      initializeBoard();
-    }
-
-    function initializeBoard() {
-      board = Array.from({ length: 8 }, () => Array(8).fill(0));
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 1;
-      for (let r = 5; r < 8; r++) for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 2;
-      history = [];
-      redCoins = 0; blackCoins = 0;
-      updateCoins();
-      selected = null;
-      drawBoard();
-      updateMessage(`${playerNames.red}'s Turn`);
-    }
-
+    // Core game functions to be reattached
     function drawBoard() {
-      const canvas = document.getElementById('checkerboard');
-      const ctx = canvas.getContext('2d');
-      const size = canvas.width / 8;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          ctx.fillStyle = (r + c) % 2 === 0 ? '#f0d9b5' : '#b58863';
-          ctx.fillRect(c * size, r * size, size, size);
-          if (selected && selected.row === r && selected.col === c) {
-            ctx.fillStyle = '#ffeb3b';
-            ctx.fillRect(c * size, r * size, size, size);
-          }
-          const piece = board[r][c];
-          if (piece) {
+      const canvas = document.getElementById("checkerboard");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const CELL_SIZE = canvas.width / 8;
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const isDark = (row + col) % 2 !== 0;
+          ctx.fillStyle = isDark ? '#b58863' : '#f0d9b5';
+          ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+          const piece = board[row][col];
+          if (piece !== 0) {
             ctx.beginPath();
-            ctx.arc(c * size + size/2, r * size + size/2, size * 0.35, 0, Math.PI * 2);
-            ctx.fillStyle = (piece === 1 || piece === 3) ? '#cc0000' : '#333';
-            ctx.fill(); ctx.stroke();
+            ctx.arc(col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2.5, 0, 2 * Math.PI);
+            ctx.fillStyle = piece === 1 || piece === 3 ? '#cc0000' : '#333';
+            ctx.fill();
+
             if (piece === 3 || piece === 4) {
               ctx.fillStyle = 'gold';
-              ctx.font = `${size * 0.5}px Arial`;
+              ctx.font = `${CELL_SIZE * 0.6}px Arial`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText('♔', c * size + size/2, r * size + size/2);
+              ctx.fillText('♔', col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2);
             }
           }
         }
       }
     }
-
-    function updateCoins() {
-      document.getElementById('redCoins').textContent = redCoins;
-      document.getElementById('blackCoins').textContent = blackCoins;
-    }
-
-    function updateMessage(msg) {
-      document.getElementById('messageBox').textContent = msg;
-    }
-
-    document.getElementById('resetButton').onclick = initializeBoard;
-    document.getElementById('undoButton').onclick = () => {
-      if (history.length) {
-        const last = history.pop();
-        board = JSON.parse(JSON.stringify(last));
-        currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
-        drawBoard();
-        updateMessage(`${playerNames[currentPlayer]}'s Turn`);
-      }
-    };
-
-    function showWinner(winnerColor) {
-      const treasure = document.getElementById('treasure');
-      treasure.classList.remove('hidden');
-      document.getElementById('winSound').play();
-      updateMessage(`${playerNames[winnerColor]} Wins! 🎉`);
-      for (let i = 0; i < 10; i++) {
-        const gem = document.createElement('div');
-        gem.className = 'gem';
-        gem.style.left = `${Math.random() * 50 + 15}px`;
-        gem.style.animationDelay = `${i * 0.2}s`;
-        treasure.appendChild(gem);
-      }
-      updateLeaderboard(playerNames[winnerColor]);
-    }
-
-    function updateLeaderboard(winner) {
-      const board = JSON.parse(localStorage.getItem('leaderboard') || '{}');
-      board[winner] = (board[winner] || 0) + 1;
-      localStorage.setItem('leaderboard', JSON.stringify(board));
-      renderLeaderboard();
-    }
-
-    function renderLeaderboard() {
-      const data = JSON.parse(localStorage.getItem('leaderboard') || '{}');
-      const list = document.getElementById('leaderboard');
-      list.innerHTML = '';
-      Object.entries(data).sort((a, b) => b[1] - a[1]).forEach(([name, score]) => {
-        const li = document.createElement('li');
-        li.textContent = `${name}: ${score} wins`;
-        list.appendChild(li);
-      });
-    }
-
-    document.getElementById('checkerboard').onclick = e => {
-      const canvas = e.target;
-      const rect = canvas.getBoundingClientRect();
-      const size = canvas.width / 8;
-      const x = Math.floor((e.clientX - rect.left) / size);
-      const y = Math.floor((e.clientY - rect.top) / size);
-      const piece = board[y][x];
-
-      const isRed = currentPlayer === 'red';
-      const isOwnPiece = (piece === 1 || piece === 3) && isRed || (piece === 2 || piece === 4) && !isRed;
-
-      if (selected && (x !== selected.col || y !== selected.row)) {
-        const valid = isValidMove(selected.row, selected.col, y, x);
-        if (valid) {
-          history.push(JSON.parse(JSON.stringify(board)));
-          board[y][x] = board[selected.row][selected.col];
-          board[selected.row][selected.col] = 0;
-          if (valid.jump) {
-            board[valid.jump.row][valid.jump.col] = 0;
-            document.getElementById('jumpSound').play();
-          }
-          if (currentPlayer === 'red' && y === 7 && board[y][x] === 1) {
-            board[y][x] = 3; document.getElementById('kingSound').play();
-          }
-          if (currentPlayer === 'black' && y === 0 && board[y][x] === 2) {
-            board[y][x] = 4; document.getElementById('kingSound').play();
-          }
-          selected = null;
-          currentPlayer = isRed ? 'black' : 'red';
-          drawBoard();
-          updateMessage(`${playerNames[currentPlayer]}'s Turn`);
-          checkWinner();
-          return;
-        }
-      }
-
-      if (isOwnPiece) {
-        selected = { row: y, col: x };
-        drawBoard();
-      }
-    };
-
-    function isValidMove(sr, sc, er, ec) {
-      const dx = ec - sc;
-      const dy = er - sr;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-      if (absDx !== absDy || absDx > 2 || board[er][ec] !== 0) return null;
-      const piece = board[sr][sc];
-      const forward = currentPlayer === 'red' ? 1 : -1;
-      const isKing = piece === 3 || piece === 4;
-      if (!isKing && dy !== forward && absDy === 1) return null;
-      if (absDx === 2) {
-        const midRow = (sr + er) / 2;
-        const midCol = (sc + ec) / 2;
-        const jumped = board[midRow][midCol];
-        if (currentPlayer === 'red' && (jumped === 2 || jumped === 4)) return { jump: { row: midRow, col: midCol } };
-        if (currentPlayer === 'black' && (jumped === 1 || jumped === 3)) return { jump: { row: midRow, col: midCol } };
-        return null;
-      }
-      return { jump: null };
-    }
-
-    function checkWinner() {
-      let red = 0, black = 0;
-      for (let row of board) for (let cell of row) {
-        if (cell === 1 || cell === 3) red++;
-        if (cell === 2 || cell === 4) black++;
-      }
-      if (red === 0) showWinner('black');
-      if (black === 0) showWinner('red');
-    }
-
-    renderLeaderboard();
   </script>
 </body>
 </html>
