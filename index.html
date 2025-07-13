@@ -3,26 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Checker Game</title>
+  <title>Ultimate Checkers</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background-color: #f0f2f5;
+      background-color: #f9fafb;
       margin: 0;
-      padding: 20px;
+      padding: 0;
     }
     canvas {
       border: 4px solid #333;
       border-radius: 8px;
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
       background-color: #fff;
     }
-    .reset-button {
+    .reset-button, .undo-button {
       background-color: #4CAF50;
       color: white;
       padding: 10px 20px;
@@ -31,261 +26,185 @@
       cursor: pointer;
       font-weight: bold;
     }
-    .reset-button:hover {
+    .reset-button:hover, .undo-button:hover {
       background-color: #45a049;
+    }
+    .treasure {
+      width: 80px;
+      height: 80px;
+      background: url('https://cdn-icons-png.flaticon.com/512/3081/3081986.png') no-repeat center/cover;
+      position: relative;
+    }
+    .gem {
+      width: 16px;
+      height: 16px;
+      background: url('https://cdn-icons-png.flaticon.com/512/650/650143.png') no-repeat center/contain;
+      position: absolute;
+      animation: dropGem 1s ease forwards;
+    }
+    @keyframes dropGem {
+      from { top: -30px; opacity: 0; }
+      to { top: 20px; opacity: 1; }
     }
   </style>
 </head>
-<body>
-<div class="game-container flex flex-col items-center space-y-4 bg-white p-6 rounded-xl shadow-xl">
-  <h1 class="text-3xl font-bold text-gray-800">Checker Game</h1>
+<body class="flex flex-col items-center p-6">
 
-  <!-- Turn & Timer -->
-  <div id="messageBox" class="text-xl font-semibold text-blue-700"></div>
-  <div id="timerBox" class="text-md text-gray-700"></div>
-
-  <!-- Scoreboard -->
-  <div class="flex space-x-6 text-lg font-medium text-gray-800">
-    <div>🔴 Red Captures: <span id="redScore">0</span></div>
-    <div>⚫ Black Captures: <span id="blackScore">0</span></div>
+  <!-- Player Name Setup -->
+  <div id="nameInput" class="flex flex-col items-center space-y-4">
+    <h1 class="text-3xl font-bold">Enter Player Names</h1>
+    <input type="text" id="playerRed" placeholder="Red Player Name" class="border p-2 rounded"/>
+    <input type="text" id="playerBlack" placeholder="Black Player Name" class="border p-2 rounded"/>
+    <button onclick="startGame()" class="reset-button">Start Game</button>
   </div>
 
-  <!-- Canvas -->
-  <canvas id="checkerboard" width="600" height="600"></canvas>
+  <!-- Main Game -->
+  <div id="gameUI" class="hidden flex flex-col items-center space-y-4">
+    <div class="flex items-center justify-between w-full max-w-xl">
+      <div class="text-xl font-semibold"><span id="redName">Red</span> Coins: <span id="redCoins">0</span></div>
+      <div class="text-xl font-semibold"><span id="blackName">Black</span> Coins: <span id="blackCoins">0</span></div>
+    </div>
 
-  <!-- Reset Button -->
-  <button id="resetButton" class="reset-button">Reset Game</button>
+    <div id="messageBox" class="text-xl font-bold text-blue-700"></div>
+    <canvas id="checkerboard" width="600" height="600"></canvas>
+
+    <div class="flex space-x-4">
+      <button id="resetButton" class="reset-button">Reset</button>
+      <button id="undoButton" class="undo-button">Undo</button>
+    </div>
+
+    <!-- Treasure Chest -->
+    <div id="treasure" class="treasure mt-6 hidden"></div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="mt-10 w-full max-w-xl">
+    <h2 class="text-2xl font-bold mb-2">🏆 Leaderboard</h2>
+    <ul id="leaderboard" class="space-y-1 text-lg text-gray-800"></ul>
+  </div>
 
   <!-- Sounds -->
   <audio id="jumpSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8509567329.mp3?filename=pop-94319.mp3" preload="auto"></audio>
   <audio id="kingSound" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_9e8fe28517.mp3?filename=notification-89939.mp3" preload="auto"></audio>
-</div>
+  <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_33c1b4bfa0.mp3?filename=success-fanfare-trumpets-6185.mp3" preload="auto"></audio>
 
-<script>
-const canvas = document.getElementById('checkerboard');
-const ctx = canvas.getContext('2d');
-const messageBox = document.getElementById('messageBox');
-const resetButton = document.getElementById('resetButton');
-const redScoreEl = document.getElementById('redScore');
-const blackScoreEl = document.getElementById('blackScore');
-const timerBox = document.getElementById('timerBox');
-const jumpSound = document.getElementById('jumpSound');
-const kingSound = document.getElementById('kingSound');
+  <script>
+    // Globals will be initialized here
+    let currentPlayer = 'red';
+    let board = [];
+    let history = [];
+    let redCoins = 0;
+    let blackCoins = 0;
+    let playerNames = { red: 'Red', black: 'Black' };
 
-const BOARD_SIZE = 8;
-const CELL_SIZE = canvas.width / BOARD_SIZE;
-const LIGHT_SQUARE = '#f0d9b5';
-const DARK_SQUARE = '#b58863';
-const RED = '#cc0000';
-const BLACK = '#333';
-const SELECTED = '#ffeb3b';
-const MOVE_HINT = '#8bc34a';
-
-let board = [];
-let currentPlayer = 'red';
-let selectedPiece = null;
-let possibleMoves = [];
-let redCaptures = 0;
-let blackCaptures = 0;
-let timer;
-let timeLeft = 30;
-let isGameOver = false;
-
-function initializeBoard() {
-  board = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if ((r + c) % 2 !== 0) board[r][c] = 1;
+    function startGame() {
+      playerNames.red = document.getElementById('playerRed').value || 'Red';
+      playerNames.black = document.getElementById('playerBlack').value || 'Black';
+      document.getElementById('nameInput').classList.add('hidden');
+      document.getElementById('gameUI').classList.remove('hidden');
+      document.getElementById('redName').textContent = playerNames.red;
+      document.getElementById('blackName').textContent = playerNames.black;
+      initializeBoard();
     }
-  }
-  for (let r = 5; r < 8; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if ((r + c) % 2 !== 0) board[r][c] = 2;
+
+    function initializeBoard() {
+      board = Array.from({ length: 8 }, () => Array(8).fill(0));
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 1;
+      }
+      for (let r = 5; r < 8; r++) {
+        for (let c = 0; c < 8; c++) if ((r + c) % 2) board[r][c] = 2;
+      }
+      history = [];
+      redCoins = 0;
+      blackCoins = 0;
+      updateCoins();
+      drawBoard();
+      updateMessage(`${playerNames.red}'s Turn`);
     }
-  }
-  currentPlayer = 'red';
-  selectedPiece = null;
-  possibleMoves = [];
-  redCaptures = 0;
-  blackCaptures = 0;
-  isGameOver = false;
-  updateScoreboard();
-  updateMessage(`${currentPlayer}'s Turn`);
-  drawBoard();
-  startTurnTimer();
-}
 
-function updateScoreboard() {
-  redScoreEl.textContent = redCaptures;
-  blackScoreEl.textContent = blackCaptures;
-}
+    function updateCoins() {
+      document.getElementById('redCoins').textContent = redCoins;
+      document.getElementById('blackCoins').textContent = blackCoins;
+    }
 
-function updateMessage(msg) {
-  messageBox.textContent = msg;
-}
+    function updateMessage(msg) {
+      document.getElementById('messageBox').textContent = msg;
+    }
 
-function drawBoard() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      ctx.fillStyle = (r + c) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
-      ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
-        ctx.fillStyle = SELECTED;
-        ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      }
-      if (possibleMoves.some(m => m.row === r && m.col === c)) {
-        ctx.fillStyle = MOVE_HINT;
-        ctx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      }
-      const piece = board[r][c];
-      if (piece !== 0) {
-        ctx.beginPath();
-        ctx.arc(c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = (piece === 1 || piece === 3) ? RED : BLACK;
-        ctx.fill();
-        ctx.stroke();
-        if (piece === 3 || piece === 4) {
-          ctx.fillStyle = 'gold';
-          ctx.font = `${CELL_SIZE * 0.5}px Arial`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('♔', c * CELL_SIZE + CELL_SIZE / 2, r * CELL_SIZE + CELL_SIZE / 2);
+    function drawBoard() {
+      const canvas = document.getElementById('checkerboard');
+      const ctx = canvas.getContext('2d');
+      const size = canvas.width / 8;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          ctx.fillStyle = (r + c) % 2 === 0 ? '#f0d9b5' : '#b58863';
+          ctx.fillRect(c * size, r * size, size, size);
+          const piece = board[r][c];
+          if (piece) {
+            ctx.beginPath();
+            ctx.arc(c * size + size/2, r * size + size/2, size * 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = (piece === 1 || piece === 3) ? '#cc0000' : '#333';
+            ctx.fill();
+            ctx.stroke();
+            if (piece === 3 || piece === 4) {
+              ctx.fillStyle = 'gold';
+              ctx.font = `${size * 0.5}px Arial`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('♔', c * size + size/2, r * size + size/2);
+            }
+          }
         }
       }
     }
-  }
-}
 
-function getPiece(r, c) {
-  return board[r][c];
-}
+    // Placeholder for actual game logic...
 
-function isOwnPiece(r, c) {
-  const p = getPiece(r, c);
-  return currentPlayer === 'red' ? (p === 1 || p === 3) : (p === 2 || p === 4);
-}
+    document.getElementById('resetButton').onclick = initializeBoard;
+    document.getElementById('undoButton').onclick = () => {
+      if (history.length) {
+        const lastState = history.pop();
+        board = JSON.parse(JSON.stringify(lastState));
+        drawBoard();
+      }
+    };
 
-function isValidMove(sr, sc, er, ec) {
-  const p = getPiece(sr, sc);
-  const isKing = p === 3 || p === 4;
-  const rd = Math.abs(er - sr), cd = Math.abs(ec - sc);
-  const target = getPiece(er, ec);
-  if (rd !== cd || target !== 0 || (er + ec) % 2 === 0) return null;
-
-  if (rd === 1) {
-    if (currentPlayer === 'red' && !isKing && er < sr) return null;
-    if (currentPlayer === 'black' && !isKing && er > sr) return null;
-    return { type: 'move' };
-  }
-
-  if (rd === 2) {
-    const mr = (sr + er) / 2, mc = (sc + ec) / 2;
-    const mp = getPiece(mr, mc);
-    if (currentPlayer === 'red' && (mp === 2 || mp === 4)) return { type: 'jump', row: mr, col: mc };
-    if (currentPlayer === 'black' && (mp === 1 || mp === 3)) return { type: 'jump', row: mr, col: mc };
-  }
-  return null;
-}
-
-function getMoves(r, c) {
-  const moves = [];
-  const dirs = [[1,1], [1,-1], [-1,1], [-1,-1]];
-  const p = getPiece(r,c), isKing = (p === 3 || p === 4);
-
-  for (let [dr, dc] of dirs) {
-    if (!isKing && ((currentPlayer === 'red' && dr < 0) || (currentPlayer === 'black' && dr > 0))) continue;
-    const nr = r + dr, nc = c + dc;
-    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) continue;
-    const simple = isValidMove(r, c, nr, nc);
-    if (simple) moves.push({ row: nr, col: nc, type: simple.type });
-
-    const jr = r + dr*2, jc = c + dc*2;
-    if (jr < 0 || jr >= BOARD_SIZE || jc < 0 || jc >= BOARD_SIZE) continue;
-    const jump = isValidMove(r, c, jr, jc);
-    if (jump) moves.push({ row: jr, col: jc, type: jump.type, rowMid: jump.row, colMid: jump.col });
-  }
-  return moves;
-}
-
-function makeMove(sr, sc, er, ec) {
-  const move = isValidMove(sr, sc, er, ec);
-  if (!move) return;
-
-  const piece = board[sr][sc];
-  board[er][ec] = piece;
-  board[sr][sc] = 0;
-
-  if (move.type === 'jump') {
-    board[move.row][move.col] = 0;
-    if (currentPlayer === 'red') redCaptures++;
-    else blackCaptures++;
-    jumpSound.play();
-  }
-
-  // King
-  if (piece === 1 && er === 7) { board[er][ec] = 3; kingSound.play(); }
-  if (piece === 2 && er === 0) { board[er][ec] = 4; kingSound.play(); }
-
-  selectedPiece = null;
-  possibleMoves = [];
-  updateScoreboard();
-
-  const moreJumps = getMoves(er, ec).filter(m => m.type === 'jump');
-  if (move.type === 'jump' && moreJumps.length) {
-    selectedPiece = { row: er, col: ec };
-    possibleMoves = moreJumps;
-    updateMessage(`${currentPlayer} must jump again`);
-    drawBoard();
-    return;
-  }
-
-  currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
-  updateMessage(`${currentPlayer}'s Turn`);
-  startTurnTimer();
-  drawBoard();
-}
-
-canvas.addEventListener('click', e => {
-  if (isGameOver) return;
-  const { left, top } = canvas.getBoundingClientRect();
-  const x = e.clientX - left, y = e.clientY - top;
-  const col = Math.floor(x / CELL_SIZE), row = Math.floor(y / CELL_SIZE);
-
-  if (selectedPiece) {
-    const valid = possibleMoves.find(m => m.row === row && m.col === col);
-    if (valid) return makeMove(selectedPiece.row, selectedPiece.col, row, col);
-  }
-
-  if (isOwnPiece(row, col)) {
-    selectedPiece = { row, col };
-    possibleMoves = getMoves(row, col);
-    drawBoard();
-  }
-});
-
-function startTurnTimer() {
-  clearInterval(timer);
-  timeLeft = 30;
-  timerBox.textContent = `⏱️ ${timeLeft}s`;
-  timer = setInterval(() => {
-    timeLeft--;
-    timerBox.textContent = `⏱️ ${timeLeft}s`;
-    if (timeLeft <= 0) {
-      clearInterval(timer);
-      currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
-      updateMessage(`${currentPlayer}'s Turn (Auto switch)`);
-      drawBoard();
-      startTurnTimer();
+    function showWinner(winnerColor) {
+      const treasure = document.getElementById('treasure');
+      treasure.classList.remove('hidden');
+      document.getElementById('winSound').play();
+      updateMessage(`${playerNames[winnerColor]} Wins! 🎉`);
+      for (let i = 0; i < 10; i++) {
+        const gem = document.createElement('div');
+        gem.className = 'gem';
+        gem.style.left = `${Math.random() * 50 + 15}px`;
+        gem.style.animationDelay = `${i * 0.2}s`;
+        treasure.appendChild(gem);
+      }
+      updateLeaderboard(playerNames[winnerColor]);
     }
-  }, 1000);
-}
 
-resetButton.addEventListener('click', () => {
-  clearInterval(timer);
-  initializeBoard();
-});
-window.onload = initializeBoard;
-</script>
+    function updateLeaderboard(winner) {
+      const board = JSON.parse(localStorage.getItem('leaderboard') || '{}');
+      board[winner] = (board[winner] || 0) + 1;
+      localStorage.setItem('leaderboard', JSON.stringify(board));
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard() {
+      const data = JSON.parse(localStorage.getItem('leaderboard') || '{}');
+      const list = document.getElementById('leaderboard');
+      list.innerHTML = '';
+      Object.entries(data).sort((a, b) => b[1] - a[1]).forEach(([name, score]) => {
+        const li = document.createElement('li');
+        li.textContent = `${name}: ${score} wins`;
+        list.appendChild(li);
+      });
+    }
+
+    renderLeaderboard();
+  </script>
 </body>
 </html>
